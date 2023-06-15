@@ -49,38 +49,46 @@
   [N edges]
   (->> edges
        (group-by first)
-       (#(do (prn %) %))
        (spr/transform
          [spr/MAP-VALS]
-         #(into {} (map (fn [[_ to]] ;; [from to] -> [t random-weight]
-                          [to (rand-weight)]) %)))
+         #(into {} (map (fn [[_ to]] [to (rand-weight)])
+                        %)))
        (merge (zipmap (range N) ;; not all vertices have outgoing edges
                       (repeat {})))))
 
 (defn fill-with-edges
   [N S G]
   (loop [g    G
+         capacities (->> g
+                         (map (fn [[k v]] [k (->> v count (- N 1))]))
+                         (filter (fn [x] (-> x second (> 0))))
+                         (into {}))
          left (- S (dec N))]
     (if (= left 0)
       g
-      (let [from (rand-int N)
-            to   (rand-int N)]
-        ;; make sure we don't have this edge already
-        ;; and we don't have it's reverse
-        ;; (to avoid loops, to make sure the graph is simple)
-        (if (and (-> from g (get to) nil?)
-                 (-> to g (get from) nil?))
-          (recur (spr/transform [from to]
-                                (constantly (rand-weight))
-                                g)
-                 (dec left))
-          (recur g left))))))
+      (let [from (->> capacities keys shuffle first) ;; choose non full vertice
+            to   (-> from g keys set (remove (range 30)) shuffle first)] ;; avoid duplicate edges
+        (recur (spr/transform [from to]
+                              (constantly (rand-weight))
+                              g)
+               (if (= (capacities from) 1)
+                 (dissoc capacities from)
+                 (update capacities from dec))
+               (dec left))))))
+
+
 
 (defn rand-graph
   [N S]
+  {:pre [(< 0 N)
+         (<= (dec N) S)
+         (<= S (* N (dec N)))]}
   (->> (random-tree N)
+       (#(do (prn %) %))
        (map shuffle)
+       (#(do (prn %) %))
        (edges->graph N)
+       (#(do (prn %) %))
        (fill-with-edges N S)))
 
 (comment
@@ -94,7 +102,11 @@
 
   (seq-graph-bfs G :1)
 
-  (rand-graph 20 30)
+  (->> (rand-graph 20 379)
+       vals (map count) (apply +)
+       )
+
+  (* 20 19)
 
   (->> (random-tree 20)
        (->>save t3)
@@ -117,28 +129,42 @@
        (->>save g1)
        (#(let [N 30
               S 50]
-          (loop [g    %
-                 left (- S (dec N))]
+          (loop [g          %
+                 capacities (->> g
+                                 (map (fn [[k v]] [k (->> v count (- N 1))]))
+                                 (filter (fn [x] (-> x second (> 0))))
+                                 (into {}))
+                 left       (- S (dec N))]
             (if (= left 0)
               g
-              (let [from (rand-int N)
-                    to   (rand-int N)]
-                (if (and (-> from g (get to) nil?)  ;; we don't have this edge already
-                         (-> to g (get from) nil?)) ;; and we don't have it's reverse
-                                                    ;;(to avoid loops, to make sure the graph is simple)
-                  (recur (spr/transform [from to]
-                                        (-> *MAX-WEIGHT*
-                                            rand-int
-                                            inc
-                                            constantly)
-                                        g)
-                         (dec left))
-                  (recur g left)))))))
-       (->>save gf1)
+              (let [from (->> capacities keys shuffle first)
+                    to   (-> from g keys set (remove (range 30)) shuffle first)]
+                (recur (spr/transform [from to]
+                                      (-> *MAX-WEIGHT*
+                                          rand-int
+                                          inc
+                                          constantly)
+                                      g)
+                       (if (= (capacities from) 1)
+                         (dissoc capacities from)
+                         (update capacities from dec))
+                       (dec left)))))))
+       ;;(->>save gf1)
        )
 
+  (-> 17 g1 keys set (remove (range 30)) shuffle first)
 
-  (->> gf1 vals (map count) (apply +))
+  (->> gf1
+       vals (map count) (apply +)
+       )
+
+  (->> g1
+       (map (fn [[k v]] [k (->> v count (- 30 1 27))]))
+       (filter #(-> % second (> 0)))
+       (into {})
+       keys
+       shuffle first
+       )
 
   (-> 9 g1 (get 8) nil?)
 
