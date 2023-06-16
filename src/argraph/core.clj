@@ -1,5 +1,6 @@
 (ns argraph.core
-  (:require [com.rpl.specter :as spr]))
+  (:require [com.rpl.specter :as spr]
+            [clojure.data.priority-map :refer [priority-map-keyfn]]))
 
 (def ^:dynamic *MAX-WEIGHT* 20)
 
@@ -77,7 +78,10 @@
     (if (= left 0)
       g
       (let [from (->> caps keys shuffle first) ;; choose non full vertice
-            to   (-> from g keys set (remove (range 30)) shuffle first)] ;; avoid duplicate edges
+            to   (-> from g keys set
+                     (conj from)        ;; avoid loops
+                     (remove (range N)) ;; avoid duplicate edges
+                     shuffle first)]
         (recur (spr/transform [from to]
                               (constantly (rand-weight))
                               g)
@@ -104,6 +108,36 @@
        (fill-with-edges N S)
        (update-vertices (comp keyword str))))
 
+
+
+
+(defn shortest-path
+  [g start end]
+  (loop [unvisited (->> (dissoc g start)
+                        (map (fn [[k v]]
+                               [k [##Inf []]]))
+                        (into (priority-map-keyfn first
+                                                  start
+                                                  [0 [start]])))
+         visited {}]
+    (if-let [[_ path] (visited end)]
+      path
+      (if-let [[current [distance path]] (peek unvisited)]
+        (let [unvisited (pop unvisited)
+              unvisited (->> (g current)
+                             (filter #(->> % first (contains? visited) not))
+                             (map (fn [[vertice weight]]
+                                    (when-let [[d p] (unvisited vertice)]
+                                      [vertice (if (< (+ distance weight) d)
+                                           [(+ distance weight) (conj path vertice)]
+                                           [d p])])))
+                             (filter seq)
+                             (into unvisited))]
+          (recur
+            unvisited
+            (assoc visited current [current [distance path]])))
+        []))))
+
 (comment
 
   (def G {:1 {:2 1 :3 2},
@@ -115,105 +149,90 @@
 
   (seq-graph-bfs G :1)
 
-  (->> (rand-graph 200 3079)
+  (->> (rand-graph 20 40)
        ;vals (map count) (apply +)
+       (->>save G3)
        )
 
-  (->> {1 {2 3 4 5}
-        6 {7 8}}
-       (spr/transform [spr/MAP-KEYS] #(-> % str keyword))
-       (spr/transform [spr/MAP-VALS spr/MAP-KEYS] #(-> % str keyword)))
+  (shortest-path G3 :0 :18)
 
-  (->> (rand-tree-paths 20)
-       (mapcat path->edges)
-       (->>save t3)
-       (map shuffle)
-       (->>save tr2)
-       (group-by first)
-       (spr/transform [spr/MAP-VALS]
-                      #(->> %
-                            (map (fn [[_ to]]
-                                   [to (rand-weight)]))
-                            (into {})))
-       (merge (zipmap (range 20) (repeat {})))
+  (let [g G2
+        start :16
+        end :2]
+    (loop [unvisited (->> (dissoc G1 start)
+                          (map (fn [[k v]]
+                                 [k [##Inf []]]))
+                          (into (priority-map-keyfn first
+                                                    start
+                                                    [0 [start]])))
+           visited {}]
+      (if-let [[distance path] (visited end)]
+        path
+        (if-let [[current [distance path]] (peek unvisited)]
+          (let [_ (prn "0" visited)
+                _ (prn "0.1" (visited end))
+                _ (prn "1" [current [distance path]])
+                _ (prn "2" (g current))
+                _ (prn "3" unvisited)
+                unvisited (pop unvisited)
+                _ (prn "4" unvisited)
+                unvisited (->> (g current)
+                               (filter #(->> % first (contains? visited) not))
+                               (map (fn [[v w]]
+                                      (prn "4.1" [v w])
+                                      (when-let [[d p] (unvisited v)]
+                                        (prn "4.2" [d p])
+                                        (if (< (+ distance w) d)
+                                          [v [(+ distance w) (conj path v)]]
+                                          [v [d p]]))))
+                               (filter seq)
+                               (into unvisited))
+                _ (prn "5" unvisited)
+                ]
+            (recur
+              unvisited
+              (assoc visited current [current [distance path]])))
+          []))))
+
+
+
+
+  (-> (priority-map-keyfn first :1 [4 [1 2 3]] :2 [2 [4 5 6]])
+      (assoc :3 [1 [7 8 9]])
+      peek)
+
+
+  (-> (spr/transform [spr/MAP-VALS] (constantly (vector ##Inf [])) G1)
+      (update-in [:7 0] (constantly 0)))
+
+  (->> (dissoc G1 :7)
+       (map (fn [[k v]]
+              [k [##Inf []]]))
+       (into (priority-map-keyfn first :7 [0 [:7]]))
+       (->>save PM1)
        )
 
-  (->> *MAX-WEIGHT* rand-int inc (conj [3]))
 
-  (->> (rand-tree-paths 30)
-       (mapcat path->edges)
-       (map shuffle)
-       (edges->graph 30)
-       (->>save g1)
-       (#(let [N 30
-              S 50]
-          (loop [g          %
-                 capacities (->> g
-                                 (map (fn [[k v]] [k (->> v count (- N 1))]))
-                                 (filter (fn [x] (-> x second (> 0))))
-                                 (into {}))
-                 left       (- S (dec N))]
-            (if (= left 0)
-              g
-              (let [from (->> capacities keys shuffle first)
-                    to   (-> from g keys set (remove (range 30)) shuffle first)]
-                (recur (spr/transform [from to]
-                                      (-> *MAX-WEIGHT*
-                                          rand-int
-                                          inc
-                                          constantly)
-                                      g)
-                       (if (= (capacities from) 1)
-                         (dissoc capacities from)
-                         (update capacities from dec))
-                       (dec left)))))))
-       ;;(->>save gf1)
-       )
+  (< Integer/MAX_VALUE ##Inf)
 
-  (-> 17 g1 keys set (remove (range 30)) shuffle first)
+  (vector 1 2 3)
 
-  (->> gf1
-       vals (map count) (apply +)
-       )
+  (if-let [[d p] ({:1 [4 [:2 :3]]} :1)]
+    p
+    "no")
 
-  (->> g1
-       (map (fn [[k v]] [k (->> v count (- 30 1 27))]))
-       (filter #(-> % second (> 0)))
-       (into {})
-       keys
-       shuffle first
-       )
+  (->> (G1 :8)
+       (filter #(->> % first (contains? {:6 [1 [2 3 4]]}) not))
+       #_(map (fn [[k v]]
+              (let [[d p] (PM1 k)]
+                (if (< (+ 100 v) d)
+                  [k [(+ 100 v) p]]
+                  [k [d p]]))))
+       #_(into PM1))
 
-  (-> 9 g1 (get 8) nil?)
-
-  (->> g1
-       (spr/transform [19 0] (constantly 1)))
-
-  (->> [[0 0 1] [0 1 7] [6 7 8] [4 8 9]]
-       (mapcat (fn [[c f t]]
-                 (->> (inc t)
-                      (range (inc f))
-                      (cons c)
-                      dedupe
-                      (partition 2 1)))))
-
-  (->> [1 2 3]
-       shuffle)
-
-  ((-> *MAX-WEIGHT* rand-int inc constantly) :a)
-
-  (rand-int-in 2 4)
-
-  (-> [1 2 3 4] (conj 5))
-
-
-  ((fn [[c f t]]
-     ;; [conn from to] -> [[conn from] [from from+1] ...[to-1 to]]
-     (->> (inc t)
-          (range (inc f))
-          (cons c)
-          dedupe
-          (partition 2 1)))
-   [0 4 8])
+  (-> :17 G1 keys set
+      (conj :17)
+      ;(remove (range 30)) shuffle first
+      )
 
   )
