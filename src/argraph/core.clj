@@ -4,9 +4,7 @@
 
 (def ^:dynamic *MAX-WEIGHT* 20)
 
-(defn rand-weight
-  []
-  (-> *MAX-WEIGHT* rand-int inc))
+(defn rand-weight [] (-> *MAX-WEIGHT* rand-int inc))
 
 (defn seq-graph
   [d g s]
@@ -108,9 +106,6 @@
        (fill-with-edges N S)
        (update-vertices (comp keyword str))))
 
-
-
-
 (defn shortest-path
   [g start end]
   (loop [unvisited (->> (dissoc g start)
@@ -120,7 +115,7 @@
                                                   start
                                                   [0 [start]])))
          visited {}]
-    (if-let [[_ path] (visited end)]
+    (if-let [[_ [distance path]] (visited end)]
       path
       (if-let [[current [distance path]] (peek unvisited)]
         (let [unvisited (pop unvisited)
@@ -154,7 +149,9 @@
        (->>save G3)
        )
 
-  (shortest-path G3 :0 :18)
+  (->> G3
+       (map (fn [[k v]]
+              [k (shortest-path G3 :1 k)])))
 
   (let [g G2
         start :16
