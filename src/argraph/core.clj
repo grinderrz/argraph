@@ -106,33 +106,61 @@
        (fill-with-edges N S)
        (update-vertices (comp keyword str))))
 
+(defn collect-paths
+  ([g start] (collect-paths g start nil))
+  ([g start end]
+   (loop [unvisited (->> (dissoc g start)
+                         (map (fn [[k v]]
+                                [k [##Inf []]]))
+                         (into (priority-map-keyfn first
+                                                   start
+                                                   [0 [start]])))
+          visited   {}]
+     (if-let [[distance path] (visited end)]
+       visited
+       (if-let [[current [distance path]] (peek unvisited)]
+         (let [unvisited (pop unvisited)
+               unvisited (->> (g current)
+                              (filter #(->> % first (contains? visited) not))
+                              (map (fn [[vertice weight]]
+                                     (let [[d _] (unvisited vertice)]
+                                       (when (and d
+                                                  (< (+ distance weight) d))
+                                         [vertice [(+ distance weight)
+                                                   (conj path vertice)]]))))
+                              (filter seq)
+                              (into unvisited))]
+           (recur
+             unvisited
+             (assoc visited current [distance path])))
+         visited)))))
+
 (defn shortest-path
   [g start end]
-  (loop [unvisited (->> (dissoc g start)
-                        (map (fn [[k v]]
-                               [k [##Inf []]]))
-                        (into (priority-map-keyfn first
-                                                  start
-                                                  [0 [start]])))
-         visited   {}]
-    (if-let [[_ [distance path]] (visited end)]
-      path
-      (if-let [[current [distance path]] (peek unvisited)]
-        (let [unvisited (pop unvisited)
-              unvisited (->> (g current)
-                             (filter #(->> % first (contains? visited) not))
-                             (map (fn [[vertice weight]]
-                                    (let [[d _] (unvisited vertice)]
-                                      (when (and d
-                                                 (< (+ distance weight) d))
-                                        [vertice [(+ distance weight)
-                                                  (conj path vertice)]]))))
-                             (filter seq)
-                             (into unvisited))]
-          (recur
-            unvisited
-            (assoc visited current [current [distance path]])))
-        []))))
+  (-> (collect-paths g start end)
+      end
+      second))
+
+(defn eccentricity
+  [g start]
+  (->> (collect-paths g start)
+       (apply max-key #(-> % val first))
+       val
+       first))
+
+(defn radius
+  [g]
+  (->> g
+       keys
+       (map (partial eccentricity g))
+       (apply min)))
+
+(defn diameter
+  [g]
+  (->> g
+       keys
+       (map (partial eccentricity g))
+       (apply max)))
 
 (comment
 
@@ -145,14 +173,33 @@
 
   (seq-graph-bfs G :1)
 
-  (->> (rand-graph 20 40)
+  (->> (rand-graph 50 500)
        ;vals (map count) (apply +)
-       (->>save G3)
+       (->>save G6)
        )
 
   (->> G3
        (map (fn [[k v]]
               [k (shortest-path G3 :1 k)])))
+
+  (-> G3
+      (collect-paths :0)
+      (dissoc :13)
+      (->> (apply max-key #(-> % val first))))
+
+  (eccentricity G3 :13)
+  (eccentricity G5 :2)
+
+  (radius G6)
+  (diameter G6)
+
+  (->> G4
+       keys
+       (map (partial eccentricity G3))
+       (apply min))
+
+  (->> [1 2 3 4]
+       (apply max))
 
   (let [g G2
         start :16
@@ -236,7 +283,7 @@
   (let [[k v] ({:1 [:a :b]} :2)]
     [k v])
 
-  (-> {:1 [:a :b]} :2 first)
+  ({:1 [:a :b]} nil )
 
 (first nil)
 
