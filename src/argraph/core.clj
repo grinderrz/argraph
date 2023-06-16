@@ -3,10 +3,12 @@
 
 (def ^:dynamic *MAX-WEIGHT* 20)
 
-(defn rand-weight []
+(defn rand-weight
+  []
   (-> *MAX-WEIGHT* rand-int inc))
 
-(defn seq-graph [d g s]
+(defn seq-graph
+  [d g s]
   ((fn rec-seq [explored frontier]
      (lazy-seq
        (if (empty? frontier)
@@ -21,29 +23,32 @@
 (def seq-graph-dfs (partial seq-graph []))
 (def seq-graph-bfs (partial seq-graph (clojure.lang.PersistentQueue/EMPTY)))
 
-(defn rand-int-in [from to]
+(defn rand-int-in
+  [from to]
   (-> to
       (- from)
       rand-int
       (+ from)))
 
-(defn random-tree [N]
-  (let [paths (loop [acc []
-                     i   0]
-                (if (= i (dec N))
-                  acc
-                  (let [connection (rand-int i)
-                        more       (rand-int-in (inc i) N)]
-                    (recur (conj acc [connection i more])
-                           more))))]
-    (mapcat (fn [[c f t]]
-              ;; [conn from to] -> [[conn from] [from from+1] ...[to-1 to]]
-              (->> (inc t)
-                   (range (inc f))
-                   (cons c)
-                   dedupe
-                   (partition 2 1)))
-            paths)))
+(defn rand-tree-paths
+  [N]
+  (loop [acc []
+         i   0]
+    (if (= i (dec N))
+      acc
+      (let [connection (rand-int i)
+            more       (rand-int-in (inc i) N)]
+        (recur (conj acc [connection i more])
+               more)))))
+
+(defn path->edges
+  [[connect-to from to]]
+  ;; [connect-to from to] -> [[connect-to from] [from from+1] ...[to-1 to]]
+  (->> (inc to)
+       (range (inc from))
+       (cons connect-to)
+       dedupe
+       (partition 2 1)))
 
 (defn edges->graph
   [N edges]
@@ -56,26 +61,29 @@
        (merge (zipmap (range N) ;; not all vertices have outgoing edges
                       (repeat {})))))
 
+(defn capacities
+  [N graph]
+  (->> graph
+       (map (fn [[k v]] [k (->> v count (- N 1))]))
+       (filter #(-> % second (> 0)))
+       (into {})))
+
 (defn fill-with-edges
   [N S G]
   (loop [g    G
-         capacities (->> g
-                         (map (fn [[k v]] [k (->> v count (- N 1))]))
-                         (filter (fn [x] (-> x second (> 0))))
-                         (into {}))
+         caps (capacities N g)
          left (- S (dec N))]
     (if (= left 0)
       g
-      (let [from (->> capacities keys shuffle first) ;; choose non full vertice
+      (let [from (->> caps keys shuffle first) ;; choose non full vertice
             to   (-> from g keys set (remove (range 30)) shuffle first)] ;; avoid duplicate edges
         (recur (spr/transform [from to]
                               (constantly (rand-weight))
                               g)
-               (if (= (capacities from) 1)
-                 (dissoc capacities from)
-                 (update capacities from dec))
+               (if (= (caps from) 1)
+                 (dissoc caps from)
+                 (update caps from dec))
                (dec left))))))
-
 
 
 (defn rand-graph
@@ -83,12 +91,10 @@
   {:pre [(< 0 N)
          (<= (dec N) S)
          (<= S (* N (dec N)))]}
-  (->> (random-tree N)
-       (#(do (prn %) %))
+  (->> (rand-tree-paths N)
+       (mapcat path->edges)
        (map shuffle)
-       (#(do (prn %) %))
        (edges->graph N)
-       (#(do (prn %) %))
        (fill-with-edges N S)))
 
 (comment
@@ -102,13 +108,14 @@
 
   (seq-graph-bfs G :1)
 
-  (->> (rand-graph 20 379)
+  (->> (rand-graph 200 3079)
        vals (map count) (apply +)
        )
 
   (* 20 19)
 
-  (->> (random-tree 20)
+  (->> (rand-tree-paths 20)
+       (mapcat path->edges)
        (->>save t3)
        (map shuffle)
        (->>save tr2)
@@ -123,7 +130,8 @@
 
   (->> *MAX-WEIGHT* rand-int inc (conj [3]))
 
-  (->> (random-tree 30)
+  (->> (rand-tree-paths 30)
+       (mapcat path->edges)
        (map shuffle)
        (edges->graph 30)
        (->>save g1)
@@ -190,12 +198,12 @@
 
 
   ((fn [[c f t]]
-              ;; [conn from to] -> [[conn from] [from from+1] ...[to-1 to]]
-              (->> (inc t)
-                   (range (inc f))
-                   (cons c)
-                   dedupe
-                   (partition 2 1)))
+     ;; [conn from to] -> [[conn from] [from from+1] ...[to-1 to]]
+     (->> (inc t)
+          (range (inc f))
+          (cons c)
+          dedupe
+          (partition 2 1)))
    [0 4 8])
 
   )
