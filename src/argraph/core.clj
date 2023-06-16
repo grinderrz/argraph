@@ -114,7 +114,7 @@
                         (into (priority-map-keyfn first
                                                   start
                                                   [0 [start]])))
-         visited {}]
+         visited   {}]
     (if-let [[_ [distance path]] (visited end)]
       path
       (if-let [[current [distance path]] (peek unvisited)]
@@ -122,10 +122,11 @@
               unvisited (->> (g current)
                              (filter #(->> % first (contains? visited) not))
                              (map (fn [[vertice weight]]
-                                    (when-let [[d p] (unvisited vertice)]
-                                      [vertice (if (< (+ distance weight) d)
-                                           [(+ distance weight) (conj path vertice)]
-                                           [d p])])))
+                                    (let [[d _] (unvisited vertice)]
+                                      (when (and d
+                                                 (< (+ distance weight) d))
+                                        [vertice [(+ distance weight)
+                                                  (conj path vertice)]]))))
                              (filter seq)
                              (into unvisited))]
           (recur
@@ -231,5 +232,12 @@
       (conj :17)
       ;(remove (range 30)) shuffle first
       )
+
+  (let [[k v] ({:1 [:a :b]} :2)]
+    [k v])
+
+  (-> {:1 [:a :b]} :2 first)
+
+(first nil)
 
   )
