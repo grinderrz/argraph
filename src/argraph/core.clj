@@ -64,8 +64,9 @@
 (defn capacities
   [N graph]
   (->> graph
-       (map (fn [[k v]] [k (->> v count (- N 1))]))
-       (filter #(-> % second (> 0)))
+       (map (fn [[k v]]
+              [k (->> v count (- N 1))]))
+       (filter #(< 0 (second %)))
        (into {})))
 
 (defn fill-with-edges
@@ -85,6 +86,11 @@
                  (update caps from dec))
                (dec left))))))
 
+(defn update-vertices
+  [f g]
+  (->> g
+       (spr/transform [spr/MAP-KEYS] f)
+       (spr/transform [spr/MAP-VALS spr/MAP-KEYS] f)))
 
 (defn rand-graph
   [N S]
@@ -95,7 +101,8 @@
        (mapcat path->edges)
        (map shuffle)
        (edges->graph N)
-       (fill-with-edges N S)))
+       (fill-with-edges N S)
+       (update-vertices (comp keyword str))))
 
 (comment
 
@@ -109,10 +116,13 @@
   (seq-graph-bfs G :1)
 
   (->> (rand-graph 200 3079)
-       vals (map count) (apply +)
+       ;vals (map count) (apply +)
        )
 
-  (* 20 19)
+  (->> {1 {2 3 4 5}
+        6 {7 8}}
+       (spr/transform [spr/MAP-KEYS] #(-> % str keyword))
+       (spr/transform [spr/MAP-VALS spr/MAP-KEYS] #(-> % str keyword)))
 
   (->> (rand-tree-paths 20)
        (mapcat path->edges)
