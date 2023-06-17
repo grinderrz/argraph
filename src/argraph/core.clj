@@ -23,6 +23,7 @@
 (def seq-graph-bfs (partial seq-graph (clojure.lang.PersistentQueue/EMPTY)))
 
 (defn rand-int-in
+  "Returns a random integer between from (inclusive) and to (exclusive)."
   [from to]
   (-> to
       (- from)
@@ -30,6 +31,12 @@
       (+ from)))
 
 (defn rand-tree-paths
+  "Returns a vector of random paths in compact representation, containing N vertices.
+   Vertices are consequtive integers from 0 up to N-1.
+   Each path is looks like [connection vertice-from vertice-to], where
+   - `connection` is a vertice from previous paths, so this path connects
+   - `vertice-from` is the next unused integer
+   - `vertice-to` is the end of this path."
   [N]
   (loop [acc []
          i   0]
@@ -41,8 +48,9 @@
                more)))))
 
 (defn path->edges
+  "Returns sequence of edges expanded from compact path representation.
+   [connect-to from to] -> [[connect-to from] [from from+1] ...[to-1 to]]."
   [[connect-to from to]]
-  ;; [connect-to from to] -> [[connect-to from] [from from+1] ...[to-1 to]]
   (->> (inc to)
        (range (inc from))
        (cons connect-to)
@@ -50,6 +58,10 @@
        (partition 2 1)))
 
 (defn edges->graph
+  "Takes number of vertices and a sequence of directed edges.
+   Assumes vertices are consecutive integers up to N-1.
+   Returns weighted directed graph consisting on N vertices with given edges in our map representation. Weights are generated with `rand-weight`.
+   (we could infer N from edges, but passing is more optimal)"
   [N edges]
   (->> edges
        (group-by first)
@@ -61,6 +73,9 @@
                       (repeat {})))))
 
 (defn capacities
+  "Given a graph with N vertices,
+   returns a map of outgoing capacity (how much outgoing edges we could add)
+   of each vertice."
   [N graph]
   (->> graph
        (map (fn [[k v]]
@@ -69,8 +84,11 @@
        (into {})))
 
 (defn fill-with-edges
-  [N S G]
-  (loop [g    G
+  "Takes number of vertices, desired sparseness and a tree with N vertices.
+   Returns a weighted graph with random edges added to initial tree.
+   Avoids adding loops and duplicate edges."
+  [N S T]
+  (loop [g    T
          caps (capacities N g)
          left (- S (dec N))]
     (if (= left 0)
@@ -89,24 +107,30 @@
                (dec left))))))
 
 (defn update-vertices
+  "Returns a graph with all vertices replaced with the result of f on them."
   [f g]
   (->> g
        (spr/transform [spr/MAP-KEYS] f)
        (spr/transform [spr/MAP-VALS spr/MAP-KEYS] f)))
 
 (defn rand-graph
+  "Returns a random weighted, weakly connected, simple directed graph
+   of N vertices with sparseness S."
   [N S]
   {:pre [(< 0 N)
          (<= (dec N) S)
          (<= S (* N (dec N)))]}
   (->> (rand-tree-paths N)
        (mapcat path->edges)
-       (map shuffle)
+       (map shuffle) ;; choose random directon
        (edges->graph N)
        (fill-with-edges N S)
+       ;; up until here vertices are consecutive integers
        (update-vertices (comp keyword str))))
 
 (defn collect-paths
+  "Returns a map of vertice to shortest path to this vertice from `start` in `g` by Dijkstra's algorithm.
+   If `end` is specified, stops as soon as `end` is visited."
   ([g start] (collect-paths g start nil))
   ([g start end]
    (loop [unvisited (->> (dissoc g start)
@@ -136,12 +160,14 @@
          visited)))))
 
 (defn shortest-path
+  "Returns the shortest path from `start` to `end` in `g` by Dijkstra's algorithm."
   [g start end]
   (-> (collect-paths g start end)
       end
       second))
 
 (defn eccentricity
+  "Returns eccentricity of vertice `start` in `g`."
   [g start]
   (->> (collect-paths g start)
        (apply max-key #(-> % val first))
@@ -149,6 +175,7 @@
        first))
 
 (defn radius
+  "Returns radius of `g`."
   [g]
   (->> g
        keys
@@ -156,11 +183,15 @@
        (apply min)))
 
 (defn diameter
+  "Returns diameter of `g`."
   [g]
   (->> g
        keys
        (map (partial eccentricity g))
        (apply max)))
+
+
+
 
 (comment
 
@@ -198,93 +229,17 @@
        (map (partial eccentricity G3))
        (apply min))
 
-  (->> [1 2 3 4]
-       (apply max))
+  (repeatedly 10 (partial rand-int-in 5 6))
 
-  (let [g G2
-        start :16
-        end :2]
-    (loop [unvisited (->> (dissoc G1 start)
-                          (map (fn [[k v]]
-                                 [k [##Inf []]]))
-                          (into (priority-map-keyfn first
-                                                    start
-                                                    [0 [start]])))
-           visited {}]
-      (if-let [[distance path] (visited end)]
-        path
-        (if-let [[current [distance path]] (peek unvisited)]
-          (let [_ (prn "0" visited)
-                _ (prn "0.1" (visited end))
-                _ (prn "1" [current [distance path]])
-                _ (prn "2" (g current))
-                _ (prn "3" unvisited)
-                unvisited (pop unvisited)
-                _ (prn "4" unvisited)
-                unvisited (->> (g current)
-                               (filter #(->> % first (contains? visited) not))
-                               (map (fn [[v w]]
-                                      (prn "4.1" [v w])
-                                      (when-let [[d p] (unvisited v)]
-                                        (prn "4.2" [d p])
-                                        (if (< (+ distance w) d)
-                                          [v [(+ distance w) (conj path v)]]
-                                          [v [d p]]))))
-                               (filter seq)
-                               (into unvisited))
-                _ (prn "5" unvisited)
-                ]
-            (recur
-              unvisited
-              (assoc visited current [current [distance path]])))
-          []))))
+  (rand-int 0)
 
+  (rand-graph 10 9)
 
-
-
-  (-> (priority-map-keyfn first :1 [4 [1 2 3]] :2 [2 [4 5 6]])
-      (assoc :3 [1 [7 8 9]])
-      peek)
-
-
-  (-> (spr/transform [spr/MAP-VALS] (constantly (vector ##Inf [])) G1)
-      (update-in [:7 0] (constantly 0)))
-
-  (->> (dissoc G1 :7)
-       (map (fn [[k v]]
-              [k [##Inf []]]))
-       (into (priority-map-keyfn first :7 [0 [:7]]))
-       (->>save PM1)
+  (->> (rand-tree-paths 10)
+       (->>also (partial prn))
+       (->>also #(->> % (map type) prn))
+       (map path->edges)
+       (->>also #(->> % (map type) prn))
        )
-
-
-  (< Integer/MAX_VALUE ##Inf)
-
-  (vector 1 2 3)
-
-  (if-let [[d p] ({:1 [4 [:2 :3]]} :1)]
-    p
-    "no")
-
-  (->> (G1 :8)
-       (filter #(->> % first (contains? {:6 [1 [2 3 4]]}) not))
-       #_(map (fn [[k v]]
-              (let [[d p] (PM1 k)]
-                (if (< (+ 100 v) d)
-                  [k [(+ 100 v) p]]
-                  [k [d p]]))))
-       #_(into PM1))
-
-  (-> :17 G1 keys set
-      (conj :17)
-      ;(remove (range 30)) shuffle first
-      )
-
-  (let [[k v] ({:1 [:a :b]} :2)]
-    [k v])
-
-  ({:1 [:a :b]} nil )
-
-(first nil)
 
   )
