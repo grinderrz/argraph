@@ -6,4 +6,6 @@
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [com.rpl/specter "1.1.4"]
                  [org.clojure/data.priority-map "1.1.0"]]
+  :profiles {:test
+             {:dependencies [[org.clojure/test.check "1.1.1"]]}}
   :repl-options {:init-ns argraph.core})
