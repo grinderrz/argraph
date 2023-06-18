@@ -192,6 +192,21 @@
 
 
 
+(defn weakly-connected?
+  "Checks if g is weakly connected."
+  [g]
+  (->> g
+       (mapcat (fn [[k v]] ;; transform to sequence of edges
+                 (map (partial into [k]) v)))
+       (mapcat (fn [[f t w]] ;; for each edge add it's reverse, to make the graph like undirected
+                 (list [f t w] [t f w])))
+       (group-by first)
+       (spr/transform ;; gather graph back
+         [spr/MAP-VALS]
+         #(into {} (map (fn [[_ to w]] [to w])
+                        %)))
+       diameter ;; now if graph is connected, each pair of vertices should have a path from one to another
+       (not= ##Inf)))
 
 (comment
 
@@ -206,7 +221,7 @@
 
   (->> (rand-graph 50 500)
        ;vals (map count) (apply +)
-       (->>save G6)
+       ;(->>save G6)
        )
 
   (->> G3
@@ -235,11 +250,30 @@
 
   (rand-graph 10 9)
 
-  (->> (rand-tree-paths 10)
-       (->>also (partial prn))
-       (->>also #(->> % (map type) prn))
-       (map path->edges)
-       (->>also #(->> % (map type) prn))
+  (->> (rand-graph 20 50)
+       (->>save G2))
+
+  (->> G2
+       (update-vertices #(-> % name Integer/parseInt (+ 30) str keyword))
+       (into G1)
+       (mapcat (fn [[k v]]
+                 (map (partial into [k]) v)))
+       (mapcat (fn [[f t w]]
+                 (list [f t w] [t f w])))
+       (group-by first)
+       (spr/transform
+         [spr/MAP-VALS]
+         #(into {} (map (fn [[_ to w]] [to w])
+                        %)))
+       diameter
        )
+
+  (->> G2
+       (update-vertices #(-> % name Integer/parseInt (+ 30) str keyword))
+       (into G1)
+       weakly-connected?
+       )
+
+  (apply shortest-path G1 (->> G1 keys shuffle (take 2)))
 
   )

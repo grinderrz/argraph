@@ -1,6 +1,6 @@
 # argraph
 
-Some graph algorithms
+Generate and measure directed graphs.
 
 ## Random graph generation
 
@@ -15,26 +15,42 @@ As if it's not a tree, that it contains a cycle, so if we remove an edge on the 
 We can then represent a tree as a set of paths (obvious to prove: just use edges as one step paths).
 
 So to generate random graph guaranteeing covering of all the set of possible graphs, we could work backwards on the given graph dissection.
-We generate a random tree gradually adding paths connected to already generated part.
-We choose random directions for all vertices.
-We add random edges until reaching desired sparseness.
+- We generate a random tree gradually adding paths connected to already generated part.
+- We choose random directions for all vertices.
+- We add random edges until reaching desired sparseness.
+
+We rely on consecutive integers as vertices to ease generation.
 
 
 ## Usage
 
-FIXME
+```clojure
 
-## License
+(def G1 (rand-graph 20 50))
+G1
+;; {:0 {:1 2, ...}, ...}
 
-Copyright © 2023 FIXME
+(apply shortest-path G1 (->> G1 keys shuffle (take 2)))
+;; [:1 :2 ...]
 
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
+(eccentricity G1 (->> G1 keys shuffle first))
+;; 10
 
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+(radius G1)
+;; 5
+
+(diameter G1)
+;; 15
+
+(weakly-connected? G1)
+;; true
+
+(->> G1 keys count (= 20))
+;; true
+
+(->> G1
+     vals (map count) (apply +)
+     (= 50))
+;; true
+
+```

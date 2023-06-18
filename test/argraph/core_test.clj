@@ -18,20 +18,41 @@
 
 (deftest test-rand-graph
   (testing "Any generated graph has correct number of vertices and edges."
-    (binding [ct/*report-trials* true]
-      (tc/quick-check
-        100
-        (prop/for-all
-          [[N S] (gen/bind gen/nat
+    (tc/quick-check
+      100
+      (prop/for-all
+        [[N S] (gen/bind gen/nat
+                         (fn [n]
+                           (gen/tuple
+                             (gen/return (inc n))
+                             (gen/choose n (* (inc n) n)))))]
+        (let [g (rand-graph N S)]
+          (and (->> g keys count (= N))
+               (->> g vals (map count) (apply +) (= S))))))))
+
+(deftest test-weakly-connected?
+  (testing "weakly-connected? works as expected."
+    (tc/quick-check
+      100
+      (prop/for-all
+        [[N1 S1] (gen/bind gen/nat
+                           (fn [n]
+                             (gen/tuple
+                               (gen/return (inc n))
+                               (gen/choose n (* (inc n) n)))))
+         [N2 S2] (gen/bind gen/nat
                            (fn [n]
                              (gen/tuple
                                (gen/return (inc n))
                                (gen/choose n (* (inc n) n)))))]
-          (let [g (rand-graph N S)]
-            (and (< 0 N)
-                 (<= (dec N) S)
-                 (<= S (* N (dec N)))
-                 (->> g keys count (= N))
-                 (->> g
-                      vals (map count) (apply +)
-                      (= S)))))))))
+        (let [G1 (rand-graph N1 S1)
+              G2 (rand-graph N2 S2)]
+          (and (->> G2
+                    (update-vertices #(-> % name Integer/parseInt
+                                          (+ N2 10) ;; make vertices different
+                                          str keyword))
+                    (into G1)
+                    weakly-connected?
+                    not)
+               (weakly-connected? G1)
+               (weakly-connected? G2)))))))
