@@ -7,11 +7,14 @@ Generate and measure directed graphs.
 It's required that graph is connected. But it's implied that shortest path is not always defined for any two vertices.
 So we assume the (directed) graph should not be strongly connected, thus we generate weakly connected directed graph.
 
-Lemma: Each weakly connected directed graph contains undirected (loosing direction) subtree.
+***Lemma 1:***
+Each weakly connected directed graph contains undirected (loosing direction) subtree.
 
+***Proof 1:***
 We can prove it by induction. On each step we remove an edge while the graph remains is still not a tree.
 As if it's not a tree, that it contains a cycle, so if we remove an edge on the cycle, the remaining graph is still connected.
 
+***Lemma 2:***
 We can then represent a tree as a set of paths (obvious to prove: just use edges as one step paths).
 
 So to generate random graph guaranteeing covering of all the set of possible graphs, we could work backwards on the given graph dissection.
